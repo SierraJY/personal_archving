@@ -7,3 +7,8 @@
 - KoBART 한국어 문서 자동 요약
 - SQLModel + SQLite 문서 메타데이터 관리
 - Streamlit 웹 기반 사용자 인터페이스
+
+### OCR 결과
+![OCR 결과 이미지](testcode/ocr_ready_news.jpg)
+![OCR 결과 이미지](testcode/ocr_ready_receipt.jpg)
+

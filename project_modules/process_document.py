@@ -11,9 +11,10 @@ from sqlmodel import select
 
 import torch
 from sklearn.metrics.pairwise import cosine_similarity
-from paddleocr import PaddleOCR
 
 from .init_db import Document
+from .preprocess_image import preprocess_image_for_ocr
+from .preprocess_keyword import extract_keyword_with_morpheme_analysis
 
 # 문서 유형 분류
 def classify_document(image, dit_processor, dit_model):
@@ -54,6 +55,15 @@ def extract_text_with_layout(image, ocr):
             boxes.append(line[0])
     
     return text.strip(), boxes
+
+def extract_text_with_layout_with_preprocess(image, ocr, use_preprocess = True):
+
+    if use_preprocess:
+        # 이미지 전처리
+        processed_image = preprocess_image_for_ocr(image)
+
+    return extract_text_with_layout(processed_image, ocr)
+    
 
 
 # LayoutLMv3를 활용한 구조화된 정보 추출 함수
@@ -394,6 +404,48 @@ def extract_keywords(text, structured_data=None):
     
     return ", ".join(list(set(keywords)))
 
+# 키워드 추출 with morpheme analysis
+def extract_keywords_advanced(text, structured_data=None):
+    keywords = extract_keyword_with_morpheme_analysis(text)
+    
+    # 구조화된 데이터에서 추가 키워드
+    if structured_data:
+        if 'store' in structured_data:
+            keywords.append(structured_data['store'])
+        if 'date' in structured_data:
+            keywords.append(structured_data['date'])
+    
+    return format_keywords(keywords)
+
+def format_keywords(keywords):
+    """
+    키워드 리스트를 정리하여 문자열로 반환합니다.
+    
+    Args:
+        keywords: 키워드 리스트
+        
+    Returns:
+        포맷팅된 키워드 문자열
+    """
+    # 중복 제거
+    unique_keywords = list(set(keywords))
+    
+    # 길이가 1인 키워드 제거
+    filtered_keywords = [kw for kw in unique_keywords if len(kw) > 1]
+    
+    # 키워드가 없는 경우 처리
+    if not filtered_keywords:
+        return ""
+    
+    # 키워드 정렬 (길이 기준 내림차순)
+    sorted_keywords = sorted(filtered_keywords, key=len, reverse=True)
+    
+    # # 최대 20개로 제한
+    # limited_keywords = sorted_keywords[:20]
+    
+    # 쉼표로 구분된 문자열로 변환
+    return ", ".join(sorted_keywords)
+
 # 문서 처리
 def process_document(uploaded_file, models):
     (dit_processor, dit_model, ocr, donut_processor, donut_model, 
@@ -406,7 +458,7 @@ def process_document(uploaded_file, models):
     doc_type = classify_document(image, dit_processor, dit_model)
     print('\n==========')
     print(f'\n[doc_type]\n{doc_type}')
-    content, boxes = extract_text_with_layout(image, ocr)
+    content, boxes = extract_text_with_layout_with_preprocess(image, ocr)
     layoutlm_data = extract_structured_with_layoutlm(image, content, boxes, layout_processor, layout_model, doc_type)
     print('\n==========')
     print(f'\n[layoutlm_data]\n{layoutlm_data}')
@@ -444,7 +496,7 @@ def process_document(uploaded_file, models):
     print(f'\n[summary]\n{summary}')
     
     # 4. 키워드 추출
-    keywords = extract_keywords(content, structured_data)
+    keywords = extract_keywords_advanced(content, structured_data)
     print('\n==========')
     print(f'\n[keywords]\n{keywords}')
     
